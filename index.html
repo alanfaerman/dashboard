@@ -273,10 +273,6 @@
       <div class="chips" id="fRetail"></div>
     </div>
     <div class="filter-group">
-      <span class="fl-label">Modelo</span>
-      <div class="chips" id="fModel"></div>
-    </div>
-    <div class="filter-group">
       <span class="fl-label">Producto</span>
       <div class="chips" id="fProduct"></div>
     </div>
@@ -354,8 +350,8 @@
         <div class="chart-holder"><canvas id="chartClientShare"></canvas></div>
       </div>
       <div class="chart-card">
-        <h3>Mix de modelo</h3>
-        <p class="desc">Distribución de unidades por modelo dentro del período filtrado.</p>
+        <h3>Mix de producto</h3>
+        <p class="desc">Distribución de unidades por producto dentro del período filtrado.</p>
         <div class="chart-holder"><canvas id="chartModelMix"></canvas></div>
       </div>
       <div class="chart-card">
@@ -377,8 +373,8 @@
 
     <div class="chart-grid" style="margin-bottom:18px;">
       <div class="chart-card">
-        <h3>Promedio semanal por modelo</h3>
-        <p class="desc">Unidades/semana, solo en semanas donde el modelo tuvo venta activa (excluye ceros previos al lanzamiento o post-discontinuación).</p>
+        <h3>Promedio semanal por producto</h3>
+        <p class="desc">Unidades/semana, solo en semanas donde el producto tuvo venta activa (excluye ceros previos al lanzamiento o post-discontinuación).</p>
         <div class="chart-holder"><canvas id="chartAvgModel"></canvas></div>
       </div>
       <div class="chart-card">
@@ -388,7 +384,7 @@
       </div>
     </div>
 
-    <h3 class="section-title">Por modelo</h3>
+    <h3 class="section-title">Por producto</h3>
     <div class="table-scroll avg-table-scroll">
       <table id="tableAvgModel" class="avg-table"><thead></thead><tbody></tbody></table>
     </div>
@@ -398,14 +394,14 @@
       <table id="tableAvgClient" class="avg-table"><thead></thead><tbody></tbody></table>
     </div>
 
-    <h3 class="section-title">Detalle retail × modelo</h3>
-    <p class="desc" style="margin:-4px 0 12px;">Base para armar el forecast a nivel SKU-cliente: promedio semanal activo, tendencia reciente y último dato disponible.</p>
+    <h3 class="section-title">Detalle retail × producto</h3>
+    <p class="desc" style="margin:-4px 0 12px;">Base para armar el forecast a nivel SKU-retail: promedio semanal activo, tendencia reciente y último dato disponible.</p>
     <div class="table-scroll avg-table-scroll">
       <table id="tableAvgDetail" class="avg-table"><thead></thead><tbody></tbody></table>
     </div>
 
     <div class="notes" style="margin-top:16px;">
-      <b>Cómo leer esta sección:</b> <b>Semanas activas</b> = semanas dentro del filtro actual con al menos 1 unidad vendida. <b>Prom/sem (activo)</b> divide el total solo por esas semanas activas — es el mejor punto de partida para un forecast de "ritmo cuando el producto/retail está vendiendo". <b>Prom/sem (período)</b> divide por todas las semanas del filtro, incluyendo ceros — sirve para ver el peso real dentro del total. <b>Prom últimas 8 sem.</b> y <b>Tendencia</b> comparan el ritmo reciente contra el promedio activo histórico, para detectar aceleración o desaceleración antes de proyectar. Todo se recalcula según los filtros de Año, Retail, Modelo, Producto, Semana y Promoción que elijas arriba.
+      <b>Cómo leer esta sección:</b> <b>Semanas activas</b> = semanas dentro del filtro actual con al menos 1 unidad vendida. <b>Prom/sem (activo)</b> divide el total solo por esas semanas activas — es el mejor punto de partida para un forecast de "ritmo cuando el producto/retail está vendiendo". <b>Prom/sem (período)</b> divide por todas las semanas del filtro, incluyendo ceros — sirve para ver el peso real dentro del total. <b>Prom últimas 8 sem.</b> y <b>Tendencia</b> comparan el ritmo reciente contra el promedio activo histórico, para detectar aceleración o desaceleración antes de proyectar. Todo se recalcula según los filtros de Año, Retail, Producto, Semana y Promoción que elijas arriba.
     </div>
   </div>
 
@@ -428,8 +424,8 @@
 
     <div class="chart-grid" style="margin-bottom:18px;">
       <div class="chart-card">
-        <h3>Proyección próximas semanas por modelo</h3>
-        <p class="desc">Unidades/semana proyectadas (promedio del horizonte elegido), por modelo.</p>
+        <h3>Proyección próximas semanas por producto</h3>
+        <p class="desc">Unidades/semana proyectadas (promedio del horizonte elegido), por producto.</p>
         <div class="chart-holder"><canvas id="chartForecastModel"></canvas></div>
       </div>
       <div class="chart-card">
@@ -439,7 +435,7 @@
       </div>
     </div>
 
-    <h3 class="section-title">Detalle de la proyección — por modelo</h3>
+    <h3 class="section-title">Detalle de la proyección — por producto</h3>
     <div class="table-scroll avg-table-scroll">
       <table id="tableForecastModel" class="avg-table"><thead></thead><tbody></tbody></table>
     </div>
@@ -450,7 +446,7 @@
     </div>
 
     <div class="notes" style="margin-top:16px;">
-      <b>Metodología:</b> la proyección usa suavizado exponencial doble (método de Holt) sobre la serie semanal histórica del conjunto filtrado — combina el nivel más reciente con la tendencia de las últimas semanas para estimar cada semana futura. La banda sombreada es un intervalo de referencia (±1.28 desvíos del error de ajuste, ampliado con la raíz del horizonte). <b>Es un modelo simple de tendencia: no anticipa eventos puntuales</b> como Cyber Monday, Black Friday o Hot Sale, cambios de stock, ni lanzamientos de producto — funciona mejor como punto de partida de un forecast, no como predicción definitiva. Ajustá los filtros (Retail, Modelo, Producto, Promoción) para generar proyecciones más específicas, y compará contra tu criterio comercial antes de tomar decisiones.
+      <b>Metodología:</b> la proyección usa suavizado exponencial doble (método de Holt) sobre la serie semanal histórica del conjunto filtrado — combina el nivel más reciente con la tendencia de las últimas semanas para estimar cada semana futura. La banda sombreada es un intervalo de referencia (±1.28 desvíos del error de ajuste, ampliado con la raíz del horizonte). <b>Es un modelo simple de tendencia: no anticipa eventos puntuales</b> como Cyber Monday, Black Friday o Hot Sale, cambios de stock, ni lanzamientos de producto — funciona mejor como punto de partida de un forecast, no como predicción definitiva. Ajustá los filtros (Retail, Producto, Promoción) para generar proyecciones más específicas, y compará contra tu criterio comercial antes de tomar decisiones.
     </div>
   </div>
 
@@ -522,21 +518,21 @@ const RETAIL_COLORS = {
   'Meli': '#0E9E8C', 'Frávega': '#C9861A', 'La Anónima': '#6E5CD9',
   'On City': '#2F6FE0', 'Cetro': '#D6432F', 'Naldo': '#8890A0'
 };
-const MODEL_COLORS = { 'Mini': '#0E9E8C', 'Mini X': '#6E5CD9', 'V3': '#2F6FE0', 'V4': '#C9861A' };
+const PRODUCT_COLORS = { 'Mini Kit': '#0E9E8C', 'Mini X': '#6E5CD9', 'Standard Kit': '#2F6FE0', 'Mini Car Pack': '#C9861A' };
 
 const state = {
-  years: new Set(), retail: new Set(), models: new Set(), products: new Set(), promo: 'all',
+  years: new Set(), retail: new Set(), products: new Set(), promo: 'all',
   weekMin: 1, weekMax: 52, horizon: 8,
   search: '', sortKey: 'f', sortDir: 1, page: 1, pageSize: 50
 };
 
-let allYears = [], allRetail = [], allModels = [], allProducts = [], allWeeksNum = [];
+let allYears = [], allRetail = [], allProducts = [], allWeeksNum = [];
 
 function fmt(n){ return Math.round(n).toLocaleString('es-AR'); }
 
 function filtered(){
   return RAW.filter(d =>
-    state.years.has(d.y) && state.retail.has(d.r) && state.models.has(d.mo) &&
+    state.years.has(d.y) && state.retail.has(d.r) &&
     state.products.has(d.p) &&
     d.s >= state.weekMin && d.s <= state.weekMax &&
     (state.promo==='all' || d.pr===state.promo)
@@ -567,7 +563,6 @@ function toggleSetVal(set, v, allValues){
 function renderFilters(){
   buildChips('fYear', allYears, state.years, null, (v)=>{ toggleSetVal(state.years, v, allYears); refreshAll(); });
   buildChips('fRetail', allRetail, state.retail, null, (v)=>{ toggleSetVal(state.retail, v, allRetail); refreshAll(); });
-  buildChips('fModel', allModels, state.models, null, (v)=>{ toggleSetVal(state.models, v, allModels); refreshAll(); });
   buildChips('fProduct', allProducts, state.products, null, (v)=>{ toggleSetVal(state.products, v, allProducts); refreshAll(); });
   const promoEl = document.getElementById('fPromo');
   promoEl.innerHTML = '';
@@ -609,7 +604,7 @@ document.getElementById('weekMax').addEventListener('change', applyWeekRange);
 
 document.getElementById('resetBtn').onclick = () => {
   state.years = new Set(allYears); state.retail = new Set(allRetail);
-  state.models = new Set(allModels); state.products = new Set(allProducts);
+  state.products = new Set(allProducts);
   state.promo = 'all'; state.search = '';
   state.weekMin = allWeeksNum[0]; state.weekMax = allWeeksNum[allWeeksNum.length-1];
   document.getElementById('searchBox').value = '';
@@ -648,7 +643,7 @@ function renderKPIs(){
   const total = data.reduce((a,d)=>a+d.q,0);
   const byRetail = {}; data.forEach(d=>byRetail[d.r]=(byRetail[d.r]||0)+d.q);
   const topRetail = Object.entries(byRetail).sort((a,b)=>b[1]-a[1])[0] || ['—',0];
-  const byModel = {}; data.forEach(d=>byModel[d.mo]=(byModel[d.mo]||0)+d.q);
+  const byModel = {}; data.forEach(d=>byModel[d.p]=(byModel[d.p]||0)+d.q);
   const topModel = Object.entries(byModel).sort((a,b)=>b[1]-a[1])[0] || ['—',0];
   const promoQty = data.filter(d=>d.pr==='Si').reduce((a,d)=>a+d.q,0);
   const weeks = new Set(data.map(d=>d.y+'-'+d.s));
@@ -664,7 +659,7 @@ function renderKPIs(){
     { label:'Unidades totales', value: fmt(total), sub: data.length+' registros', extra: barsHtml },
     { label:'Semanas activas', value: weeks.size, sub: 'en el rango filtrado' },
     { label:'Retail líder', value: topRetail[0], sub: total? (topRetail[1]/total*100).toFixed(1)+'% del volumen' : '—' },
-    { label:'Modelo líder', value: topModel[0], sub: total? (topModel[1]/total*100).toFixed(1)+'% del volumen' : '—' },
+    { label:'Producto líder', value: topModel[0], sub: total? (topModel[1]/total*100).toFixed(1)+'% del volumen' : '—' },
     { label:'Unidades en promo', value: total? (promoQty/total*100).toFixed(1)+'%' : '0%', sub: fmt(promoQty)+' unidades' },
   ];
   document.getElementById('kpiRow').innerHTML = kpis.map(k=>`
@@ -805,14 +800,14 @@ function renderCharts(){
     }
   });
 
-  // Model mix doughnut
+  // Product mix doughnut
   const byModel = {};
-  data.forEach(d=>{ byModel[d.mo] = (byModel[d.mo]||0)+d.q; });
+  data.forEach(d=>{ byModel[d.p] = (byModel[d.p]||0)+d.q; });
   const modelKeys = Object.keys(byModel).filter(k=>byModel[k]>0);
   destroyChart('modelMix');
   charts.modelMix = new Chart(document.getElementById('chartModelMix'), {
     type:'doughnut',
-    data:{ labels: modelKeys, datasets:[{ data: modelKeys.map(k=>byModel[k]), backgroundColor: modelKeys.map(k=>MODEL_COLORS[k]||'#8890A0'), borderColor:'#FFFFFF', borderWidth:2 }] },
+    data:{ labels: modelKeys, datasets:[{ data: modelKeys.map(k=>byModel[k]), backgroundColor: modelKeys.map(k=>PRODUCT_COLORS[k]||'#8890A0'), borderColor:'#FFFFFF', borderWidth:2 }] },
     options:{
       responsive:true, maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{ position:'bottom', labels:{ color:'#5B6472', font:{size:11}, boxWidth:10 } } }
@@ -955,18 +950,18 @@ function renderAverages(){
       <div class="sub">vs. promedio activo histórico</div>
     </div>`;
 
-  const modelStats = groupWeeklyStats(data, d=>d.mo, periodStats);
+  const modelStats = groupWeeklyStats(data, d=>d.p, periodStats);
   const retailStats = groupWeeklyStats(data, d=>d.r, periodStats);
-  const detailStats = groupWeeklyStats(data, d=>d.r+' · '+d.mo, periodStats);
+  const detailStats = groupWeeklyStats(data, d=>d.r+' · '+d.p, periodStats);
 
-  renderAvgTable('tableAvgModel', modelStats, 'Modelo', totalStats);
+  renderAvgTable('tableAvgModel', modelStats, 'Producto', totalStats);
   renderAvgTable('tableAvgClient', retailStats, 'Retail', totalStats);
-  renderAvgTable('tableAvgDetail', detailStats, 'Retail · Modelo', totalStats);
+  renderAvgTable('tableAvgDetail', detailStats, 'Retail · Producto', totalStats);
 
   destroyChart('avgModel');
   charts.avgModel = new Chart(document.getElementById('chartAvgModel'), {
     type:'bar',
-    data:{ labels: modelStats.map(r=>r.group), datasets:[{ data: modelStats.map(r=>r.avgActive), backgroundColor: modelStats.map(r=>MODEL_COLORS[r.group]||'#8890A0'), borderRadius:4, maxBarThickness:40 }] },
+    data:{ labels: modelStats.map(r=>r.group), datasets:[{ data: modelStats.map(r=>r.avgActive), backgroundColor: modelStats.map(r=>PRODUCT_COLORS[r.group]||'#8890A0'), borderRadius:4, maxBarThickness:40 }] },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:false } },
@@ -1144,7 +1139,7 @@ function renderForecast(){
     }).sort((a,b)=>b.horizonSum-a.horizonSum);
   }
 
-  const modelForecast = groupForecast(d=>d.mo);
+  const modelForecast = groupForecast(d=>d.p);
   const retailForecast = groupForecast(d=>d.r);
 
   function renderForecastTable(tableId, rows){
@@ -1172,7 +1167,7 @@ function renderForecast(){
   destroyChart('forecastModel');
   charts.forecastModel = new Chart(document.getElementById('chartForecastModel'), {
     type:'bar',
-    data:{ labels: modelForecast.map(r=>r.group), datasets:[{ data: modelForecast.map(r=>r.nextWk), backgroundColor: modelForecast.map(r=>MODEL_COLORS[r.group]||'#8890A0'), borderRadius:4, maxBarThickness:40 }] },
+    data:{ labels: modelForecast.map(r=>r.group), datasets:[{ data: modelForecast.map(r=>r.nextWk), backgroundColor: modelForecast.map(r=>PRODUCT_COLORS[r.group]||'#8890A0'), borderRadius:4, maxBarThickness:40 }] },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:false } },
@@ -1230,12 +1225,10 @@ async function init(){
 
   allYears = [...new Set(RAW.map(d=>d.y))].sort();
   allRetail = [...new Set(RAW.map(d=>d.r))].sort();
-  allModels = [...new Set(RAW.map(d=>d.mo))].sort();
   allProducts = [...new Set(RAW.map(d=>d.p))].sort();
   allWeeksNum = [...new Set(RAW.map(d=>d.s))].sort((a,b)=>a-b);
   allYears.forEach(y=>state.years.add(y));
   allRetail.forEach(r=>state.retail.add(r));
-  allModels.forEach(m=>state.models.add(m));
   allProducts.forEach(p=>state.products.add(p));
   state.weekMin = allWeeksNum[0];
   state.weekMax = allWeeksNum[allWeeksNum.length-1];
