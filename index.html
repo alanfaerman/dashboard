@@ -351,6 +351,11 @@
         <p class="desc">Participación (%) de cada retail sobre el total anual de unidades.</p>
         <div class="chart-holder"><canvas id="chartClientShare"></canvas></div>
       </div>
+      <div class="chart-card full">
+        <h3>Evolución semanal del mix por retail</h3>
+        <p class="desc">Participación (%) de cada retail sobre el total de unidades, semana a semana. Útil para ver cambios de peso relativo entre retailers a lo largo del tiempo.</p>
+        <div class="chart-holder tall"><canvas id="chartRetailMixWeekly"></canvas></div>
+      </div>
       <div class="chart-card">
         <h3>Mix de producto</h3>
         <p class="desc">Distribución de unidades por producto dentro del período filtrado.</p>
@@ -815,7 +820,50 @@ function renderCharts(){
     }
   });
 
-  // Product mix doughnut
+  // Retail mix evolution, week by week (100% stacked area)
+  const weekRetailMap = {};
+  data.forEach(d=>{
+    const wk = d.y*100 + d.s;
+    weekRetailMap[wk] = weekRetailMap[wk] || {};
+    weekRetailMap[wk][d.r] = (weekRetailMap[wk][d.r]||0) + d.q;
+  });
+  const retailPresentWeekly = [...new Set(data.map(d=>d.r))];
+  destroyChart('retailMixWeekly');
+  charts.retailMixWeekly = new Chart(document.getElementById('chartRetailMixWeekly'), {
+    type:'line',
+    data:{
+      labels: weekLabels,
+      datasets: retailPresentWeekly.map(r=>({
+        label:r,
+        data: weekKeys.map(wk=>{
+          const rec = weekRetailMap[wk] || {};
+          const tot = Object.values(rec).reduce((a,b)=>a+b,0);
+          return tot ? (rec[r]||0)/tot*100 : 0;
+        }),
+        borderColor: RETAIL_COLORS[r] || '#8890A0',
+        backgroundColor: RETAIL_COLORS[r] || '#8890A0',
+        fill:true, tension:0.25, pointRadius:0, borderWidth:1
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'bottom', labels:{ color:'#5B6472', font:{size:10}, boxWidth:9 } },
+        tooltip:{
+          enabled:true, mode:'index', intersect:false,
+          backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
+          borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
+          titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:11},
+          callbacks:{ label:(ctx)=> ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%' }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color:'#8890A0', maxRotation:0, autoSkip:true, maxTicksLimit:16, font:{family:'JetBrains Mono', size:10} }, grid:{ display:false } },
+        y:{ stacked:true, min:0, max:100, ticks:{ color:'#8890A0', callback:(v)=>v+'%', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
+      }
+    }
+  });
   const byModel = {};
   data.forEach(d=>{ byModel[d.p] = (byModel[d.p]||0)+d.q; });
   const modelKeys = Object.keys(byModel).filter(k=>byModel[k]>0);
