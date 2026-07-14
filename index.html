@@ -267,6 +267,8 @@
     <div class="filter-group">
       <span class="fl-label">Año</span>
       <div class="chips" id="fYear"></div>
+      <span class="fl-label" style="margin-top:8px;">Mes</span>
+      <div class="chips" id="fMonth"></div>
     </div>
     <div class="filter-group">
       <span class="fl-label">Retail</span>
@@ -521,18 +523,18 @@ const RETAIL_COLORS = {
 const PRODUCT_COLORS = { 'Mini Kit': '#0E9E8C', 'Mini X': '#6E5CD9', 'Standard Kit': '#2F6FE0', 'Mini Car Pack': '#C9861A' };
 
 const state = {
-  years: new Set(), retail: new Set(), products: new Set(), promo: 'all',
+  years: new Set(), months: new Set(), retail: new Set(), products: new Set(), promo: 'all',
   weekMin: 1, weekMax: 52, horizon: 8,
   search: '', sortKey: 'f', sortDir: 1, page: 1, pageSize: 50
 };
 
-let allYears = [], allRetail = [], allProducts = [], allWeeksNum = [];
+let allYears = [], allMonths = [], allRetail = [], allProducts = [], allWeeksNum = [];
 
 function fmt(n){ return Math.round(n).toLocaleString('es-AR'); }
 
 function filtered(){
   return RAW.filter(d =>
-    state.years.has(d.y) && state.retail.has(d.r) &&
+    state.years.has(d.y) && state.months.has(d.m) && state.retail.has(d.r) &&
     state.products.has(d.p) &&
     d.s >= state.weekMin && d.s <= state.weekMax &&
     (state.promo==='all' || d.pr===state.promo)
@@ -562,6 +564,7 @@ function toggleSetVal(set, v, allValues){
 
 function renderFilters(){
   buildChips('fYear', allYears, state.years, null, (v)=>{ toggleSetVal(state.years, v, allYears); refreshAll(); });
+  buildChips('fMonth', allMonths, state.months, (v)=>MONTH_NAMES[v], (v)=>{ toggleSetVal(state.months, v, allMonths); refreshAll(); });
   buildChips('fRetail', allRetail, state.retail, null, (v)=>{ toggleSetVal(state.retail, v, allRetail); refreshAll(); });
   buildChips('fProduct', allProducts, state.products, null, (v)=>{ toggleSetVal(state.products, v, allProducts); refreshAll(); });
   const promoEl = document.getElementById('fPromo');
@@ -603,7 +606,7 @@ document.getElementById('weekMin').addEventListener('change', applyWeekRange);
 document.getElementById('weekMax').addEventListener('change', applyWeekRange);
 
 document.getElementById('resetBtn').onclick = () => {
-  state.years = new Set(allYears); state.retail = new Set(allRetail);
+  state.years = new Set(allYears); state.months = new Set(allMonths); state.retail = new Set(allRetail);
   state.products = new Set(allProducts);
   state.promo = 'all'; state.search = '';
   state.weekMin = allWeeksNum[0]; state.weekMax = allWeeksNum[allWeeksNum.length-1];
@@ -736,11 +739,23 @@ function renderCharts(){
     data:{ labels: weekLabels, datasets:[{
       label:'Unidades', data: weekKeys.map(k=>byWeek[k]),
       borderColor:'#0E9E8C', backgroundColor:'rgba(14,158,140,0.10)', fill:true,
-      tension:0.3, pointRadius:0, borderWidth:2
+      tension:0.3, pointRadius:0, pointHoverRadius:5, pointHitRadius:12,
+      pointBackgroundColor:'#0E9E8C', pointBorderColor:'#FFFFFF', pointBorderWidth:1.5,
+      borderWidth:2
     }]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false} },
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          enabled:true, mode:'index', intersect:false,
+          backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
+          borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
+          titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:12, weight:'600'},
+          callbacks:{ label:(ctx)=> ' ' + fmt(ctx.parsed.y) + ' unidades' }
+        }
+      },
       scales:{
         x:{ ticks:{ color:'#8890A0', maxRotation:0, autoSkip:true, maxTicksLimit:16, font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } },
         y:{ ticks:{ color:'#8890A0', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
@@ -1224,10 +1239,12 @@ async function init(){
   }
 
   allYears = [...new Set(RAW.map(d=>d.y))].sort();
+  allMonths = [...new Set(RAW.map(d=>d.m))].sort((a,b)=>a-b);
   allRetail = [...new Set(RAW.map(d=>d.r))].sort();
   allProducts = [...new Set(RAW.map(d=>d.p))].sort();
   allWeeksNum = [...new Set(RAW.map(d=>d.s))].sort((a,b)=>a-b);
   allYears.forEach(y=>state.years.add(y));
+  allMonths.forEach(m=>state.months.add(m));
   allRetail.forEach(r=>state.retail.add(r));
   allProducts.forEach(p=>state.products.add(p));
   state.weekMin = allWeeksNum[0];
