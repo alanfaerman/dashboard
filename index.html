@@ -338,8 +338,13 @@
     <div class="chart-grid">
       <div class="chart-card full">
         <h3>Evolución semanal de unidades</h3>
-        <p class="desc">Volumen total despachado por semana, marzo 2024 – junio 2026. Los picos coinciden con eventos comerciales (Cyber, Black Friday, Hot Sale).</p>
+        <p class="desc">Volumen total despachado por semana, marzo 2024 – junio 2026, con línea de tendencia (regresión lineal). Los picos coinciden con eventos comerciales (Cyber, Black Friday, Hot Sale).</p>
         <div class="chart-holder tall"><canvas id="chartWeekly"></canvas></div>
+      </div>
+      <div class="chart-card full">
+        <h3>Evolución de promedios semanales</h3>
+        <p class="desc">Media móvil de 4 y 8 semanas sobre el total filtrado — suaviza la volatilidad semana a semana para ver cómo cambia el ritmo de venta de fondo a lo largo del tiempo.</p>
+        <div class="chart-holder tall"><canvas id="chartWeeklyMA"></canvas></div>
       </div>
       <div class="chart-card">
         <h3>Comparación mensual interanual</h3>
@@ -725,6 +730,26 @@ function renderTable(){
 let charts = {};
 function destroyChart(key){ if(charts[key]){ charts[key].destroy(); delete charts[key]; } }
 
+function linearTrendLine(values){
+  const n = values.length;
+  if(n === 0) return [];
+  if(n === 1) return [values[0]];
+  let sumX=0, sumY=0, sumXY=0, sumXX=0;
+  for(let i=0;i<n;i++){ sumX+=i; sumY+=values[i]; sumXY+=i*values[i]; sumXX+=i*i; }
+  const denom = (n*sumXX - sumX*sumX);
+  const slope = denom!==0 ? (n*sumXY - sumX*sumY)/denom : 0;
+  const intercept = (sumY - slope*sumX)/n;
+  return values.map((_,i)=> intercept + slope*i);
+}
+
+function movingAverage(values, windowSize){
+  return values.map((_, i)=>{
+    const start = Math.max(0, i-windowSize+1);
+    const slice = values.slice(start, i+1);
+    return slice.reduce((a,b)=>a+b,0) / slice.length;
+  });
+}
+
 const chartDefaults = {
   color: '#5B6472',
   font: { family: 'Inter' }
@@ -738,27 +763,66 @@ function renderCharts(){
   data.forEach(d=>{ const k=d.y*100+d.s; byWeek[k]=(byWeek[k]||0)+d.q; });
   const weekKeys = Object.keys(byWeek).sort((a,b)=>a-b);
   const weekLabels = weekKeys.map(k=>{ const y=Math.floor(k/100), s=k%100; return `S${s} '${String(y).slice(2)}`; });
+  const weekValues = weekKeys.map(k=>byWeek[k]);
+  const trendLine = linearTrendLine(weekValues);
   destroyChart('weekly');
   charts.weekly = new Chart(document.getElementById('chartWeekly'), {
     type:'line',
-    data:{ labels: weekLabels, datasets:[{
-      label:'Unidades', data: weekKeys.map(k=>byWeek[k]),
-      borderColor:'#0E9E8C', backgroundColor:'rgba(14,158,140,0.10)', fill:true,
-      tension:0.3, pointRadius:0, pointHoverRadius:5, pointHitRadius:12,
-      pointBackgroundColor:'#0E9E8C', pointBorderColor:'#FFFFFF', pointBorderWidth:1.5,
-      borderWidth:2
-    }]},
+    data:{ labels: weekLabels, datasets:[
+      {
+        label:'Unidades', data: weekValues,
+        borderColor:'#0E9E8C', backgroundColor:'rgba(14,158,140,0.10)', fill:true,
+        tension:0.3, pointRadius:0, pointHoverRadius:5, pointHitRadius:12,
+        pointBackgroundColor:'#0E9E8C', pointBorderColor:'#FFFFFF', pointBorderWidth:1.5,
+        borderWidth:2, order:2
+      },
+      {
+        label:'Tendencia', data: trendLine,
+        borderColor:'#D6432F', backgroundColor:'transparent', fill:false,
+        borderDash:[6,4], borderWidth:2, pointRadius:0, tension:0, order:1
+      }
+    ]},
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{ mode:'index', intersect:false },
       plugins:{
-        legend:{display:false},
+        legend:{ display:true, position:'top', labels:{ color:'#5B6472', font:{size:11}, boxWidth:10 } },
         tooltip:{
           enabled:true, mode:'index', intersect:false,
           backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
           borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
           titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:12, weight:'600'},
-          callbacks:{ label:(ctx)=> ' ' + fmt(ctx.parsed.y) + ' unidades' }
+          callbacks:{ label:(ctx)=> ' ' + ctx.dataset.label + ': ' + fmt(ctx.parsed.y) + ' unidades' }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color:'#8890A0', maxRotation:0, autoSkip:true, maxTicksLimit:16, font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } },
+        y:{ ticks:{ color:'#8890A0', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
+      }
+    }
+  });
+
+  // Weekly moving averages (4 and 8 weeks)
+  const ma4 = movingAverage(weekValues, 4);
+  const ma8 = movingAverage(weekValues, 8);
+  destroyChart('weeklyMA');
+  charts.weeklyMA = new Chart(document.getElementById('chartWeeklyMA'), {
+    type:'line',
+    data:{ labels: weekLabels, datasets:[
+      { label:'Media móvil 4 sem.', data: ma4, borderColor:'#2F6FE0', backgroundColor:'transparent', fill:false, tension:0.25, pointRadius:0, borderWidth:2 },
+      { label:'Media móvil 8 sem.', data: ma8, borderColor:'#C9861A', backgroundColor:'transparent', fill:false, tension:0.25, pointRadius:0, borderWidth:2 }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:true, position:'top', labels:{ color:'#5B6472', font:{size:11}, boxWidth:10 } },
+        tooltip:{
+          enabled:true, mode:'index', intersect:false,
+          backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
+          borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
+          titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:11},
+          callbacks:{ label:(ctx)=> ' ' + ctx.dataset.label + ': ' + fmt(ctx.parsed.y) + ' unidades' }
         }
       },
       scales:{
