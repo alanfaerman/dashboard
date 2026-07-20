@@ -358,7 +358,7 @@
       </div>
       <div class="chart-card full">
         <h3>Evolución semanal del mix por retail</h3>
-        <p class="desc">Participación (%) de cada retail sobre el total de unidades, semana a semana. Útil para ver cambios de peso relativo entre retailers a lo largo del tiempo.</p>
+        <p class="desc">Participación (%) de cada retail sobre el total de unidades, semana a semana — una línea por retail para seguir su tendencia individual sin apilamiento.</p>
         <div class="chart-holder tall"><canvas id="chartRetailMixWeekly"></canvas></div>
       </div>
       <div class="chart-card">
@@ -884,7 +884,7 @@ function renderCharts(){
     }
   });
 
-  // Retail mix evolution, week by week (100% stacked area)
+  // Retail mix evolution, week by week (individual lines, not stacked)
   const weekRetailMap = {};
   data.forEach(d=>{
     const wk = d.y*100 + d.s;
@@ -905,8 +905,10 @@ function renderCharts(){
           return tot ? (rec[r]||0)/tot*100 : 0;
         }),
         borderColor: RETAIL_COLORS[r] || '#8890A0',
-        backgroundColor: RETAIL_COLORS[r] || '#8890A0',
-        fill:true, tension:0.25, pointRadius:0, borderWidth:1
+        backgroundColor: 'transparent',
+        fill:false, tension:0.3, pointRadius:0, pointHoverRadius:4, pointHitRadius:10,
+        pointBackgroundColor: RETAIL_COLORS[r] || '#8890A0', pointBorderColor:'#FFFFFF', pointBorderWidth:1,
+        borderWidth:2
       }))
     },
     options:{
@@ -924,7 +926,7 @@ function renderCharts(){
       },
       scales:{
         x:{ ticks:{ color:'#8890A0', maxRotation:0, autoSkip:true, maxTicksLimit:16, font:{family:'JetBrains Mono', size:10} }, grid:{ display:false } },
-        y:{ stacked:true, min:0, max:100, ticks:{ color:'#8890A0', callback:(v)=>v+'%', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
+        y:{ min:0, ticks:{ color:'#8890A0', callback:(v)=>v+'%', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
       }
     }
   });
