@@ -298,7 +298,8 @@
     <button class="tab-btn" data-tab="graficos"><span class="n">ii.</span>Gráficos</button>
     <button class="tab-btn" data-tab="promedios"><span class="n">iii.</span>Promedios semanales</button>
     <button class="tab-btn" data-tab="forecast"><span class="n">iv.</span>Forecast</button>
-    <button class="tab-btn" data-tab="insights"><span class="n">v.</span>Insights</button>
+    <button class="tab-btn" data-tab="promolaunch"><span class="n">v.</span>Promos &amp; Lanzamientos</button>
+    <button class="tab-btn" data-tab="insights"><span class="n">vi.</span>Insights</button>
   </div>
 
   <!-- TAB: DATOS -->
@@ -459,6 +460,46 @@
 
     <div class="notes" style="margin-top:16px;">
       <b>Metodología:</b> la proyección usa suavizado exponencial doble (método de Holt) sobre la serie semanal histórica del conjunto filtrado — combina el nivel más reciente con la tendencia de las últimas semanas para estimar cada semana futura. La banda sombreada es un intervalo de referencia (±1.28 desvíos del error de ajuste, ampliado con la raíz del horizonte). <b>Es un modelo simple de tendencia: no anticipa eventos puntuales</b> como Cyber Monday, Black Friday o Hot Sale, cambios de stock, ni lanzamientos de producto — funciona mejor como punto de partida de un forecast, no como predicción definitiva. Ajustá los filtros (Retail, Producto, Promoción) para generar proyecciones más específicas, y compará contra tu criterio comercial antes de tomar decisiones.
+    </div>
+  </div>
+
+  <!-- TAB: PROMOS & LANZAMIENTOS -->
+  <div class="tab-panel" id="tab-promolaunch">
+
+    <h3 class="section-title" style="margin-top:0;">Elasticidad de promociones</h3>
+    <p class="desc" style="margin:-4px 0 16px;">Compara, para cada campaña, el volumen total del mercado (según filtros activos) durante las semanas de la promo contra el promedio de las 4 semanas inmediatamente anteriores. Solo las campañas con % de descuento explícito en su nombre (ej. "30% Off") se ubican en el eje de descuento del gráfico — el resto se muestra en la tabla con descuento "N/D".</p>
+
+    <div class="avg-summary" id="elasticitySummary"></div>
+
+    <div class="chart-card full" style="margin-bottom:18px;">
+      <h3>Descuento vs. crecimiento en ventas</h3>
+      <p class="desc">Cada punto es una campaña con descuento conocido. La línea punteada es la regresión lineal simple entre % de descuento y % de crecimiento vs. el promedio previo.</p>
+      <div class="chart-holder tall"><canvas id="chartElasticity"></canvas></div>
+    </div>
+
+    <div class="table-scroll avg-table-scroll">
+      <table id="tableElasticity" class="avg-table"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <div class="notes" style="margin-top:16px;">
+      <b>Cómo leer esta sección:</b> "Crecimiento" compara el promedio semanal de <b>todo el mercado filtrado</b> durante la promo contra el promedio semanal de las 4 semanas previas (no solo las unidades de esa campaña puntual) — así se captura el efecto de arrastre real de la promo sobre el total de ventas. Con pocas campañas de descuento conocido, la regresión es orientativa, no estadísticamente robusta — usala como primera lectura, no como coeficiente de elasticidad definitivo.
+    </div>
+
+    <h3 class="section-title">Análisis de lanzamientos</h3>
+    <p class="desc" style="margin:-4px 0 16px;">Para cada producto, la "semana de lanzamiento" es la primera semana (dentro del filtro activo) con unidades vendidas mayores a cero. Las curvas están alineadas por semanas desde el lanzamiento, no por fecha calendario, para comparar la velocidad de adopción entre productos.</p>
+
+    <div class="chart-card full" style="margin-bottom:18px;">
+      <h3>Curva de adopción por producto</h3>
+      <p class="desc">Unidades vendidas por semana, contadas desde la semana de lanzamiento de cada producto (semana 0 = primera semana con ventas).</p>
+      <div class="chart-holder tall"><canvas id="chartLaunchCurve"></canvas></div>
+    </div>
+
+    <div class="table-scroll avg-table-scroll">
+      <table id="tableLaunch" class="avg-table"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <div class="notes" style="margin-top:16px;">
+      <b>Nota:</b> la semana de lanzamiento se calcula sobre los datos que pasan el filtro activo (Retail, Promoción, etc.) — si acotás por un retail específico, la semana de lanzamiento puede correrse hacia adelante respecto al lanzamiento real del producto en el mercado total.
     </div>
   </div>
 
@@ -1138,6 +1179,13 @@ function nextWeekKey(wk){
   return y*100 + s;
 }
 
+function prevWeekKey(wk){
+  let y = Math.floor(wk/100), s = wk % 100;
+  s -= 1;
+  if(s < 1){ s = 52; y -= 1; }
+  return y*100 + s;
+}
+
 function weekLabel(wk){
   const y = Math.floor(wk/100), s = wk % 100;
   return `S${s} '${String(y).slice(2)}`;
@@ -1319,6 +1367,254 @@ function renderForecast(){
   });
 }
 
+/* ---------- Elasticidad de promociones ---------- */
+
+function parseDiscountPct(name){
+  if(!name) return null;
+  const m = String(name).match(/^(\d+)%\s*Off/i);
+  return m ? parseInt(m[1],10) : null;
+}
+
+function linRegXY(points){
+  // points: [{x,y}, ...]
+  const n = points.length;
+  if(n < 2) return null;
+  let sumX=0,sumY=0,sumXY=0,sumXX=0;
+  points.forEach(p=>{ sumX+=p.x; sumY+=p.y; sumXY+=p.x*p.y; sumXX+=p.x*p.x; });
+  const denom = (n*sumXX - sumX*sumX);
+  if(denom === 0) return null;
+  const slope = (n*sumXY - sumX*sumY)/denom;
+  const intercept = (sumY - slope*sumX)/n;
+  return { slope, intercept };
+}
+
+function buildCampaignInstances(data){
+  const rows = data.filter(d=>d.pr==='Si');
+  const byName = {};
+  rows.forEach(d=>{
+    const nm = (d.cp && d.cp!=='-') ? d.cp : 'Promoción sin nombre';
+    byName[nm] = byName[nm] || {};
+    const wk = d.y*100 + d.s;
+    byName[nm][wk] = (byName[nm][wk]||0) + d.q;
+  });
+  const instances = [];
+  Object.entries(byName).forEach(([nm, weekMap])=>{
+    const wks = Object.keys(weekMap).map(Number).sort((a,b)=>a-b);
+    if(wks.length === 0) return;
+    let run = [wks[0]];
+    for(let i=1;i<wks.length;i++){
+      if(nextWeekKey(run[run.length-1]) === wks[i]) run.push(wks[i]);
+      else { instances.push({name:nm, weeks:run.slice()}); run=[wks[i]]; }
+    }
+    instances.push({name:nm, weeks:run.slice()});
+  });
+  return instances.sort((a,b)=> a.weeks[0]-b.weeks[0]);
+}
+
+function renderElasticity(){
+  const data = filtered();
+  const totalMap = buildWeeklySeries(data)['Total'] || {};
+  const instances = buildCampaignInstances(data);
+
+  const rows = instances.map(inst=>{
+    const discount = parseDiscountPct(inst.name);
+    const avgDuring = inst.weeks.reduce((a,wk)=>a+(totalMap[wk]||0),0) / inst.weeks.length;
+    const baselineWeeks = [];
+    let cursor = inst.weeks[0];
+    for(let i=0;i<4;i++){ cursor = prevWeekKey(cursor); if(totalMap[cursor]!==undefined) baselineWeeks.push(cursor); }
+    const baselineAvg = baselineWeeks.length ? baselineWeeks.reduce((a,wk)=>a+totalMap[wk],0)/baselineWeeks.length : null;
+    const growthPct = (baselineAvg && baselineAvg>0) ? ((avgDuring-baselineAvg)/baselineAvg*100) : null;
+    const label = `${inst.name} (${weekLabel(inst.weeks[0])}${inst.weeks.length>1 ? '–'+weekLabel(inst.weeks[inst.weeks.length-1]) : ''})`;
+    return { label, name:inst.name, discount, weeks:inst.weeks.length, avgDuring, baselineAvg, growthPct };
+  });
+
+  const known = rows.filter(r=>r.discount!==null && r.growthPct!==null);
+  const reg = linRegXY(known.map(r=>({x:r.discount, y:r.growthPct})));
+
+  const avgGrowthKnown = known.length ? known.reduce((a,r)=>a+r.growthPct,0)/known.length : null;
+  document.getElementById('elasticitySummary').innerHTML = `
+    <div class="kpi">
+      <div class="label">Campañas analizadas</div>
+      <div class="value">${rows.length}</div>
+      <div class="sub">${known.length} con % de descuento conocido</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Crecimiento prom. (con % conocido)</div>
+      <div class="value">${avgGrowthKnown!==null ? (avgGrowthKnown>0?'+':'')+avgGrowthKnown.toFixed(1)+'%' : '—'}</div>
+      <div class="sub">vs. 4 semanas previas</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Pendiente de la regresión</div>
+      <div class="value">${reg ? (reg.slope>0?'+':'')+reg.slope.toFixed(2) : '—'}</div>
+      <div class="sub">pts de crecimiento % por cada 1% de descuento</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Mejor campaña (crecimiento)</div>
+      <div class="value">${rows.length ? rows.slice().sort((a,b)=>(b.growthPct||-Infinity)-(a.growthPct||-Infinity))[0].name : '—'}</div>
+      <div class="sub">${rows.length ? (rows.slice().sort((a,b)=>(b.growthPct||-Infinity)-(a.growthPct||-Infinity))[0].growthPct||0).toFixed(1)+'% vs. previas' : ''}</div>
+    </div>`;
+
+  destroyChart('elasticity');
+  const scatterPoints = known.map(r=>({ x:r.discount, y:r.growthPct, label:r.name }));
+  const regLine = reg ? [0,50].map(x=>({x, y: reg.intercept + reg.slope*x})) : [];
+  charts.elasticity = new Chart(document.getElementById('chartElasticity'), {
+    type:'scatter',
+    data:{
+      datasets:[
+        {
+          label:'Campañas', data: scatterPoints,
+          backgroundColor:'#0E9E8C', borderColor:'#0E9E8C',
+          pointRadius:6, pointHoverRadius:8
+        },
+        {
+          label:'Regresión', data: regLine, type:'line',
+          borderColor:'#D6432F', borderDash:[6,4], borderWidth:2,
+          pointRadius:0, fill:false, tension:0
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'top', labels:{ color:'#5B6472', font:{size:11}, boxWidth:10 } },
+        tooltip:{
+          backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
+          borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
+          titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:11},
+          callbacks:{
+            label:(ctx)=>{
+              if(ctx.dataset.label==='Regresión') return ' regresión: ' + ctx.parsed.y.toFixed(1) + '%';
+              const p = ctx.raw;
+              return ' ' + p.label + ': ' + p.x + '% desc. → ' + (p.y>0?'+':'') + p.y.toFixed(1) + '%';
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ title:{ display:true, text:'Descuento (%)', color:'#5B6472', font:{size:11} }, ticks:{ color:'#8890A0', callback:(v)=>v+'%', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } },
+        y:{ title:{ display:true, text:'Crecimiento vs. 4 sem. previas (%)', color:'#5B6472', font:{size:11} }, ticks:{ color:'#8890A0', callback:(v)=>v+'%', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
+      }
+    }
+  });
+
+  const table = document.getElementById('tableElasticity');
+  table.querySelector('thead').innerHTML = `<tr>
+    <th>Campaña</th>
+    <th>Descuento</th>
+    <th>Semanas</th>
+    <th>Prom/sem mercado (previas)</th>
+    <th>Prom/sem mercado (durante)</th>
+    <th>Crecimiento</th>
+  </tr>`;
+  table.querySelector('tbody').innerHTML = rows.sort((a,b)=>a.weeks[0]-b.weeks[0]).map(r=>`
+    <tr>
+      <td>${r.label}</td>
+      <td>${r.discount!==null ? r.discount+'%' : 'N/D'}</td>
+      <td>${r.weeks}</td>
+      <td>${r.baselineAvg!==null ? fmt(r.baselineAvg) : '—'}</td>
+      <td>${fmt(r.avgDuring)}</td>
+      <td>${r.growthPct!==null ? trendCell(r.growthPct) : '—'}</td>
+    </tr>`).join('');
+}
+
+/* ---------- Análisis de lanzamientos ---------- */
+
+function renderLaunch(){
+  const data = filtered();
+  const byProduct = {};
+  data.forEach(d=>{
+    byProduct[d.p] = byProduct[d.p] || {};
+    const wk = d.y*100 + d.s;
+    byProduct[d.p][wk] = (byProduct[d.p][wk]||0) + d.q;
+  });
+
+  const productRows = Object.keys(byProduct).map(p=>{
+    const weekMap = byProduct[p];
+    const wks = Object.keys(weekMap).map(Number).sort((a,b)=>a-b);
+    const launchWk = wks.find(wk=>weekMap[wk]>0);
+    if(launchWk === undefined) return null;
+    // build weeks-since-launch series up to the last available week for this product
+    const lastWk = wks[wks.length-1];
+    const series = [];
+    let cursor = launchWk;
+    let idx = 0;
+    while(true){
+      series.push(weekMap[cursor] || 0);
+      if(cursor === lastWk || idx > 200) break; // safety cap
+      cursor = nextWeekKey(cursor);
+      idx++;
+    }
+    const peak = Math.max(...series);
+    const peakWeekOffset = series.indexOf(peak);
+    const total = series.reduce((a,b)=>a+b,0);
+    return {
+      product: p, launchWk, series,
+      w0: series[0]||0, w4: series[4]!==undefined?series[4]:null, w8: series[8]!==undefined?series[8]:null,
+      peak, peakWeekOffset, total
+    };
+  }).filter(Boolean).sort((a,b)=>a.launchWk-b.launchWk);
+
+  const maxLen = Math.max(0, ...productRows.map(r=>r.series.length));
+  const xLabels = Array.from({length:maxLen}, (_,i)=>'S+'+i);
+
+  destroyChart('launchCurve');
+  charts.launchCurve = new Chart(document.getElementById('chartLaunchCurve'), {
+    type:'line',
+    data:{
+      labels: xLabels,
+      datasets: productRows.map(r=>({
+        label:r.product,
+        data: r.series,
+        borderColor: PRODUCT_COLORS[r.product] || '#8890A0',
+        backgroundColor:'transparent',
+        fill:false, tension:0.25, pointRadius:0, pointHoverRadius:4, pointHitRadius:10,
+        borderWidth:2
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'top', labels:{ color:'#5B6472', font:{size:11}, boxWidth:10 } },
+        tooltip:{
+          enabled:true, mode:'index', intersect:false,
+          backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
+          borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
+          titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:11},
+          callbacks:{ label:(ctx)=> ' ' + ctx.dataset.label + ': ' + fmt(ctx.parsed.y) + ' unidades' }
+        }
+      },
+      scales:{
+        x:{ title:{ display:true, text:'Semanas desde el lanzamiento', color:'#5B6472', font:{size:11} }, ticks:{ color:'#8890A0', maxRotation:0, autoSkip:true, maxTicksLimit:16, font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } },
+        y:{ ticks:{ color:'#8890A0', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
+      }
+    }
+  });
+
+  const table = document.getElementById('tableLaunch');
+  table.querySelector('thead').innerHTML = `<tr>
+    <th>Producto</th>
+    <th>Semana de lanzamiento</th>
+    <th>Uds. semana 0</th>
+    <th>Uds. semana 4</th>
+    <th>Uds. semana 8</th>
+    <th>Pico semanal</th>
+    <th>Semana del pico</th>
+    <th>Total acumulado</th>
+  </tr>`;
+  table.querySelector('tbody').innerHTML = productRows.map(r=>`
+    <tr>
+      <td>${r.product}</td>
+      <td>${weekLabel(r.launchWk)}</td>
+      <td>${fmt(r.w0)}</td>
+      <td>${r.w4!==null ? fmt(r.w4) : '—'}</td>
+      <td>${r.w8!==null ? fmt(r.w8) : '—'}</td>
+      <td>${fmt(r.peak)}</td>
+      <td>S+${r.peakWeekOffset}</td>
+      <td>${fmt(r.total)}</td>
+    </tr>`).join('');
+}
+
 function refreshAll(){
   renderFilters();
   renderKPIs();
@@ -1326,6 +1622,8 @@ function refreshAll(){
   renderCharts();
   renderAverages();
   renderForecast();
+  renderElasticity();
+  renderLaunch();
 }
 
 // Carga de datos desde data.json (separado del HTML para poder actualizarlo cada semana
