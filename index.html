@@ -467,7 +467,7 @@
   <div class="tab-panel" id="tab-promolaunch">
 
     <h3 class="section-title" style="margin-top:0;">Elasticidad de promociones</h3>
-    <p class="desc" style="margin:-4px 0 16px;">Compara, para cada campaña, el volumen total del mercado (según filtros activos) durante las semanas de la promo contra el promedio de las 4 semanas inmediatamente anteriores. Solo las campañas con % de descuento explícito en su nombre (ej. "30% Off") se ubican en el eje de descuento del gráfico — el resto se muestra en la tabla con descuento "N/D".</p>
+    <p class="desc" style="margin:-4px 0 16px;">Compara, para cada campaña, el volumen total del mercado (según filtros activos) durante las semanas de la promo contra el promedio de las 4 semanas inmediatamente anteriores, relacionándolo con el % de descuento real de cada una.</p>
 
     <div class="avg-summary" id="elasticitySummary"></div>
 
@@ -1369,12 +1369,6 @@ function renderForecast(){
 
 /* ---------- Elasticidad de promociones ---------- */
 
-function parseDiscountPct(name){
-  if(!name) return null;
-  const m = String(name).match(/^(\d+)%\s*Off/i);
-  return m ? parseInt(m[1],10) : null;
-}
-
 function linRegXY(points){
   // points: [{x,y}, ...]
   const n = points.length;
@@ -1395,7 +1389,9 @@ function buildCampaignInstances(data){
     const nm = (d.cp && d.cp!=='-') ? d.cp : 'Promoción sin nombre';
     byName[nm] = byName[nm] || {};
     const wk = d.y*100 + d.s;
-    byName[nm][wk] = (byName[nm][wk]||0) + d.q;
+    byName[nm][wk] = byName[nm][wk] || { qty:0, discounts:[] };
+    byName[nm][wk].qty += d.q;
+    if(d.disc !== null && d.disc !== undefined) byName[nm][wk].discounts.push(d.disc);
   });
   const instances = [];
   Object.entries(byName).forEach(([nm, weekMap])=>{
@@ -1404,9 +1400,9 @@ function buildCampaignInstances(data){
     let run = [wks[0]];
     for(let i=1;i<wks.length;i++){
       if(nextWeekKey(run[run.length-1]) === wks[i]) run.push(wks[i]);
-      else { instances.push({name:nm, weeks:run.slice()}); run=[wks[i]]; }
+      else { instances.push({name:nm, weeks:run.slice(), weekMap}); run=[wks[i]]; }
     }
-    instances.push({name:nm, weeks:run.slice()});
+    instances.push({name:nm, weeks:run.slice(), weekMap});
   });
   return instances.sort((a,b)=> a.weeks[0]-b.weeks[0]);
 }
@@ -1417,7 +1413,8 @@ function renderElasticity(){
   const instances = buildCampaignInstances(data);
 
   const rows = instances.map(inst=>{
-    const discount = parseDiscountPct(inst.name);
+    const allDiscounts = inst.weeks.flatMap(wk=>(inst.weekMap[wk] && inst.weekMap[wk].discounts) || []);
+    const discount = allDiscounts.length ? allDiscounts.reduce((a,b)=>a+b,0)/allDiscounts.length : null;
     const avgDuring = inst.weeks.reduce((a,wk)=>a+(totalMap[wk]||0),0) / inst.weeks.length;
     const baselineWeeks = [];
     let cursor = inst.weeks[0];
