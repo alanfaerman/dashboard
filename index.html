@@ -295,12 +295,13 @@
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="ultimasemana"><span class="n">i.</span>Última semana</button>
-    <button class="tab-btn" data-tab="datos"><span class="n">ii.</span>Datos</button>
-    <button class="tab-btn" data-tab="graficos"><span class="n">iii.</span>Gráficos</button>
-    <button class="tab-btn" data-tab="promedios"><span class="n">iv.</span>Promedios semanales</button>
-    <button class="tab-btn" data-tab="forecast"><span class="n">v.</span>Forecast</button>
-    <button class="tab-btn" data-tab="promolaunch"><span class="n">vi.</span>Promos &amp; Lanzamientos</button>
-    <button class="tab-btn" data-tab="insights"><span class="n">vii.</span>Insights</button>
+    <button class="tab-btn" data-tab="acumulado"><span class="n">ii.</span>Acumulado</button>
+    <button class="tab-btn" data-tab="datos"><span class="n">iii.</span>Datos</button>
+    <button class="tab-btn" data-tab="graficos"><span class="n">iv.</span>Gráficos</button>
+    <button class="tab-btn" data-tab="promedios"><span class="n">v.</span>Promedios semanales</button>
+    <button class="tab-btn" data-tab="forecast"><span class="n">vi.</span>Forecast</button>
+    <button class="tab-btn" data-tab="promolaunch"><span class="n">vii.</span>Promos &amp; Lanzamientos</button>
+    <button class="tab-btn" data-tab="insights"><span class="n">viii.</span>Insights</button>
   </div>
 
   <!-- TAB: DATOS -->
@@ -335,6 +336,51 @@
 
     <div class="notes" style="margin-top:16px;">
       <b>Cómo leer esta sección:</b> "Semana actual" es la última semana con datos dentro del filtro activo; se compara contra la semana inmediatamente anterior y, cuando hay historia suficiente, contra la misma semana del año anterior. El "Var. puntos de share" indica cuánto ganó o perdió cada retail/producto en participación (no en unidades) de una semana a la otra — útil para ver cambios de mix incluso cuando el total se mantiene estable.
+    </div>
+  </div>
+
+  <!-- TAB: ACUMULADO (mes/año) -->
+  <div class="tab-panel" id="tab-acumulado">
+    <div class="filters" style="margin-bottom:20px;">
+      <div class="filter-group">
+        <span class="fl-label">Vista</span>
+        <div class="chips" id="fAccPeriodType"></div>
+      </div>
+      <div class="filter-group">
+        <span class="fl-label">Período</span>
+        <select id="accPeriodSelect" class="search-box" style="width:180px;"></select>
+      </div>
+    </div>
+
+    <div class="avg-summary" id="accSummary"></div>
+
+    <div class="notes" id="accAlerts" style="margin-bottom:18px;"></div>
+
+    <div class="chart-grid" style="margin-bottom:18px;">
+      <div class="chart-card">
+        <h3>Unidades por retail — período vs. anterior</h3>
+        <p class="desc">Comparación del período seleccionado contra el inmediatamente anterior, por retail.</p>
+        <div class="chart-holder"><canvas id="chartAccRetail"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Unidades por producto — período vs. anterior</h3>
+        <p class="desc">Comparación del período seleccionado contra el inmediatamente anterior, por producto.</p>
+        <div class="chart-holder"><canvas id="chartAccProduct"></canvas></div>
+      </div>
+    </div>
+
+    <h3 class="section-title" style="margin-top:0;">Share por retail</h3>
+    <div class="table-scroll avg-table-scroll">
+      <table id="tableAccRetail" class="avg-table"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <h3 class="section-title">Share por producto</h3>
+    <div class="table-scroll avg-table-scroll">
+      <table id="tableAccProduct" class="avg-table"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <div class="notes" style="margin-top:16px;">
+      <b>Cómo leer esta sección:</b> elegí si querés ver el acumulado por <b>mes</b> o por <b>año</b>, y qué período específico mirar. Se compara contra el período inmediatamente anterior (el mes previo, o el año previo) y, en vista mensual, también contra el mismo mes del año anterior. El "Var. puntos de share" mide el cambio de participación, no de volumen — útil para separar "vendimos más" de "ganamos terreno".
     </div>
   </div>
 
@@ -611,6 +657,7 @@ const PRODUCT_COLORS = { 'Mini Kit': '#0E9E8C', 'Mini X': '#6E5CD9', 'Standard K
 const state = {
   years: new Set(), months: new Set(), retail: new Set(), products: new Set(), promo: 'all',
   weekMin: 1, weekMax: 52, horizon: 8,
+  accPeriodType: 'month', accPeriodValue: null,
   search: '', sortKey: 'f', sortDir: 1, page: 1, pageSize: 50
 };
 
@@ -1647,6 +1694,226 @@ function renderLaunch(){
     </tr>`).join('');
 }
 
+/* ---------- Acumulado: por mes o por año, con comparación de período ---------- */
+
+function getPeriodKey(d, periodType){
+  return periodType === 'year' ? d.y : d.y*100 + d.m;
+}
+function getPrevPeriodKey(key, periodType){
+  if(periodType === 'year') return key - 1;
+  let y = Math.floor(key/100), m = key % 100;
+  m -= 1;
+  if(m < 1){ m = 12; y -= 1; }
+  return y*100 + m;
+}
+function getSameLastYearKey(key, periodType){
+  if(periodType === 'year') return null;
+  let y = Math.floor(key/100), m = key % 100;
+  return (y-1)*100 + m;
+}
+function getPeriodLabel(key, periodType){
+  if(periodType === 'year') return String(key);
+  const y = Math.floor(key/100), m = key % 100;
+  return MONTH_NAMES[m] + " '" + String(y).slice(2);
+}
+
+function renderAccFilters(availableKeys){
+  const typeEl = document.getElementById('fAccPeriodType');
+  typeEl.innerHTML = '';
+  [['month','Mensual'],['year','Anual']].forEach(([val,label])=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (state.accPeriodType===val ? ' active' : '');
+    chip.textContent = label;
+    chip.onclick = () => { state.accPeriodType = val; state.accPeriodValue = null; refreshAll(); };
+    typeEl.appendChild(chip);
+  });
+
+  const select = document.getElementById('accPeriodSelect');
+  const prevValue = select.value;
+  select.innerHTML = availableKeys.map(k=>`<option value="${k}">${getPeriodLabel(k, state.accPeriodType)}</option>`).join('');
+  if(state.accPeriodValue !== null && availableKeys.includes(state.accPeriodValue)){
+    select.value = String(state.accPeriodValue);
+  } else if(availableKeys.length){
+    select.value = String(availableKeys[availableKeys.length-1]);
+    state.accPeriodValue = availableKeys[availableKeys.length-1];
+  }
+  select.onchange = () => { state.accPeriodValue = Number(select.value); refreshAll(); };
+}
+
+function renderAccumulated(){
+  const data = filtered();
+  const summaryEl = document.getElementById('accSummary');
+  const alertsEl = document.getElementById('accAlerts');
+  const periodType = state.accPeriodType;
+
+  if(data.length === 0){
+    summaryEl.innerHTML = '<div class="kpi" style="grid-column:1 / -1;"><div class="label">Sin datos</div><div class="sub">Ajustá los filtros para ver el acumulado.</div></div>';
+    alertsEl.innerHTML = '';
+    destroyChart('accRetail'); destroyChart('accProduct');
+    ['tableAccRetail','tableAccProduct'].forEach(id=>{
+      document.getElementById(id).querySelector('thead').innerHTML = '';
+      document.getElementById(id).querySelector('tbody').innerHTML = '';
+    });
+    renderAccFilters([]);
+    return;
+  }
+
+  const keysSet = new Set(data.map(d=>getPeriodKey(d, periodType)));
+  const keys = [...keysSet].sort((a,b)=>a-b);
+  renderAccFilters(keys);
+
+  const curKey = state.accPeriodValue;
+  const prevKey = getPrevPeriodKey(curKey, periodType);
+  const yoyKey = getSameLastYearKey(curKey, periodType);
+
+  const curRows = data.filter(d=>getPeriodKey(d, periodType)===curKey);
+  let prevRows = data.filter(d=>getPeriodKey(d, periodType)===prevKey);
+  const yoyRows = yoyKey !== null ? data.filter(d=>getPeriodKey(d, periodType)===yoyKey) : [];
+
+  // Year mode: if the selected year is partial (fewer months than the max seen anywhere),
+  // restrict the previous year to the SAME set of months for a fair like-for-like comparison.
+  let likeForLikeNote = '';
+  if(periodType === 'year'){
+    const monthsInCur = [...new Set(curRows.map(d=>d.m))].sort((a,b)=>a-b);
+    const allMonthsInPrevFull = [...new Set(prevRows.map(d=>d.m))].sort((a,b)=>a-b);
+    const isCurFullYear = monthsInCur.length >= 12;
+    if(!isCurFullYear && allMonthsInPrevFull.length > monthsInCur.length){
+      prevRows = prevRows.filter(d=>monthsInCur.includes(d.m));
+      likeForLikeNote = ` (comparado ${MONTH_NAMES[monthsInCur[0]]}–${MONTH_NAMES[monthsInCur[monthsInCur.length-1]]} vs. mismos meses)`;
+    }
+  }
+
+  const curQty = curRows.reduce((a,d)=>a+d.q,0);
+  const prevQty = prevRows.reduce((a,d)=>a+d.q,0);
+  const yoyQty = yoyRows.reduce((a,d)=>a+d.q,0);
+  const havePrev = prevRows.length > 0;
+  const haveYoy = yoyRows.length > 0;
+  const wowPct = (havePrev && prevQty>0) ? ((curQty-prevQty)/prevQty*100) : null;
+  const yoyPct = (haveYoy && yoyQty>0) ? ((curQty-yoyQty)/yoyQty*100) : null;
+
+  const promoQtyCur = curRows.filter(d=>d.pr==='Si').reduce((a,d)=>a+d.q,0);
+  const promoSharePctCur = curQty ? (promoQtyCur/curQty*100) : 0;
+  const activeCampaigns = [...new Set(curRows.filter(d=>d.pr==='Si' && d.cp!=='-').map(d=>d.cp))];
+  const weeksInPeriod = new Set(curRows.map(weekKey)).size;
+  const weeksInPrevPeriod = new Set(prevRows.map(weekKey)).size;
+  const avgWeekly = weeksInPeriod ? curQty/weeksInPeriod : 0;
+  const isPartial = periodType==='month' ? (weeksInPeriod < 4 && weeksInPeriod < weeksInPrevPeriod)
+                                          : false;
+
+  summaryEl.innerHTML = `
+    <div class="kpi">
+      <div class="label">Período seleccionado</div>
+      <div class="value">${getPeriodLabel(curKey, periodType)}</div>
+      <div class="sub">${fmt(curQty)} unidades${isPartial ? ' · <span style="color:var(--signal-4)">parcial ('+weeksInPeriod+' sem.)</span>' : ''}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Vs. período anterior</div>
+      <div class="value">${trendCell(wowPct)}</div>
+      <div class="sub">${havePrev ? fmt(prevQty)+' u. en '+getPeriodLabel(prevKey, periodType)+likeForLikeNote : 'sin dato previo'}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">${periodType==='year' ? 'Promedio semanal del año' : 'Vs. mismo mes año anterior'}</div>
+      <div class="value">${periodType==='year' ? fmt(avgWeekly) : trendCell(yoyPct)}</div>
+      <div class="sub">${periodType==='year' ? 'unidades / semana' : (haveYoy ? fmt(yoyQty)+' u. en '+getPeriodLabel(yoyKey, periodType) : 'sin dato disponible')}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Unidades en promo</div>
+      <div class="value">${promoSharePctCur.toFixed(1)}%</div>
+      <div class="sub">${activeCampaigns.length ? (activeCampaigns.length<=3 ? activeCampaigns.join(', ') : activeCampaigns.length+' campañas') : 'sin campañas activas'}</div>
+    </div>`;
+
+  function breakdownBy(keyFn){
+    const curMap = {}, prevMap = {};
+    curRows.forEach(d=>{ const k=keyFn(d); curMap[k]=(curMap[k]||0)+d.q; });
+    prevRows.forEach(d=>{ const k=keyFn(d); prevMap[k]=(prevMap[k]||0)+d.q; });
+    const ks = [...new Set([...Object.keys(curMap), ...Object.keys(prevMap)])];
+    return ks.map(k=>{
+      const cur = curMap[k]||0, prev = prevMap[k]||0;
+      const shareCur = curQty ? cur/curQty*100 : 0;
+      const sharePrev = prevQty ? prev/prevQty*100 : 0;
+      const varPct = prev>0 ? ((cur-prev)/prev*100) : (cur>0 ? null : 0);
+      return { key:k, cur, prev, shareCur, sharePrev, shareDelta: shareCur-sharePrev, varPct };
+    }).sort((a,b)=>b.cur-a.cur);
+  }
+
+  const byRetail = breakdownBy(d=>d.r);
+  const byProduct = breakdownBy(d=>d.p);
+
+  const alerts = [];
+  if(isPartial) alerts.push(`⚠️ <b>${getPeriodLabel(curKey, periodType)} está parcial</b> (solo ${weeksInPeriod} semana${weeksInPeriod===1?'':'s'} de datos) — las comparaciones contra el período anterior no son directamente comparables todavía.`);
+  if(likeForLikeNote) alerts.push(`ℹ️ ${getPeriodLabel(curKey, periodType)} todavía no tiene el año completo, así que la comparación contra ${getPeriodLabel(prevKey, periodType)} usa solo los meses equivalentes${likeForLikeNote} para que sea comparable.`);
+  [...byRetail.filter(r=>r.cur===0 && r.prev>0).map(r=>`Retail <b>${r.key}</b> no vendió en este período (venía de ${fmt(r.prev)} u.)`),
+   ...byProduct.filter(r=>r.cur===0 && r.prev>0).map(r=>`Producto <b>${r.key}</b> no vendió en este período (venía de ${fmt(r.prev)} u.)`)
+  ].forEach(a=>alerts.push(a));
+  const biggestGain = [...byRetail, ...byProduct].filter(r=>r.shareDelta!==null && isFinite(r.shareDelta)).sort((a,b)=>b.shareDelta-a.shareDelta)[0];
+  const biggestDrop = [...byRetail, ...byProduct].filter(r=>r.shareDelta!==null && isFinite(r.shareDelta)).sort((a,b)=>a.shareDelta-b.shareDelta)[0];
+  if(biggestGain && biggestGain.shareDelta>1) alerts.push(`<b>${biggestGain.key}</b> ganó ${biggestGain.shareDelta.toFixed(1)} pts. de share vs. el período anterior`);
+  if(biggestDrop && biggestDrop.shareDelta<-1) alerts.push(`<b>${biggestDrop.key}</b> perdió ${Math.abs(biggestDrop.shareDelta).toFixed(1)} pts. de share vs. el período anterior`);
+
+  alertsEl.innerHTML = alerts.length
+    ? '<b>Cosas para mirar:</b><br>' + alerts.map(a=>'• '+a).join('<br>')
+    : '<b>Sin alertas destacables</b> — el mix de retail y producto se mantuvo relativamente estable en este período.';
+
+  function renderBreakdownTable(tableId, rows, label){
+    const table = document.getElementById(tableId);
+    table.querySelector('thead').innerHTML = `<tr>
+      <th>${label}</th>
+      <th>Uds. este período</th>
+      <th>Uds. período anterior</th>
+      <th>Var. %</th>
+      <th>Share este período</th>
+      <th>Share período anterior</th>
+      <th>Var. puntos de share</th>
+    </tr>`;
+    table.querySelector('tbody').innerHTML = rows.map(r=>`
+      <tr>
+        <td>${r.key}</td>
+        <td>${fmt(r.cur)}</td>
+        <td>${fmt(r.prev)}</td>
+        <td>${r.varPct!==null ? trendCell(r.varPct) : '—'}</td>
+        <td>${r.shareCur.toFixed(1)}%</td>
+        <td>${r.sharePrev.toFixed(1)}%</td>
+        <td>${(r.shareDelta>0?'+':'')+r.shareDelta.toFixed(1)} pts</td>
+      </tr>`).join('');
+  }
+
+  renderBreakdownTable('tableAccRetail', byRetail, 'Retail');
+  renderBreakdownTable('tableAccProduct', byProduct, 'Producto');
+
+  function renderCompareChart(chartKey, canvasId, rows, colorMap){
+    destroyChart(chartKey);
+    charts[chartKey] = new Chart(document.getElementById(canvasId), {
+      type:'bar',
+      data:{
+        labels: rows.map(r=>r.key),
+        datasets:[
+          { label:getPeriodLabel(prevKey, periodType), data: rows.map(r=>r.prev), backgroundColor:'#C9D3E0', borderRadius:4, maxBarThickness:26 },
+          { label:getPeriodLabel(curKey, periodType), data: rows.map(r=>r.cur), backgroundColor: rows.map(r=>colorMap[r.key]||'#0E9E8C'), borderRadius:4, maxBarThickness:26 }
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ position:'top', labels:{ color:'#5B6472', font:{size:11}, boxWidth:10 } },
+          tooltip:{
+            backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
+            borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
+            titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:11},
+            callbacks:{ label:(ctx)=> ' ' + ctx.dataset.label + ': ' + fmt(ctx.parsed.y) + ' u.' }
+          }
+        },
+        scales:{
+          x:{ ticks:{ color:'#5B6472', font:{size:10}, maxRotation:20 }, grid:{ display:false } },
+          y:{ ticks:{ color:'#8890A0', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
+        }
+      }
+    });
+  }
+
+  renderCompareChart('accRetail', 'chartAccRetail', byRetail, RETAIL_COLORS);
+  renderCompareChart('accProduct', 'chartAccProduct', byProduct, PRODUCT_COLORS);
+}
+
 /* ---------- Última semana: resumen y comparación WoW ---------- */
 
 function renderLastWeek(){
@@ -1806,6 +2073,7 @@ function refreshAll(){
   renderElasticity();
   renderLaunch();
   renderLastWeek();
+  renderAccumulated();
 }
 
 // Carga de datos desde data.json (separado del HTML para poder actualizarlo cada semana
