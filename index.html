@@ -225,6 +225,10 @@
   .trend-up{color:var(--signal-1);}
   .trend-down{color:var(--signal-4);}
   .trend-flat{color:var(--muted-2);}
+  .stock-badge{ font-size:0.72rem; padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap; }
+  .stock-low{ background:rgba(214,67,47,0.12); color:var(--signal-4); border:1px solid rgba(214,67,47,0.3); }
+  .stock-high{ background:rgba(47,111,224,0.12); color:var(--signal-5); border:1px solid rgba(47,111,224,0.3); }
+  .stock-ok{ background:rgba(14,158,140,0.10); color:var(--signal-1); border:1px solid rgba(14,158,140,0.25); }
 
   footer{
     margin-top:40px; padding-top:18px; border-top:1px solid var(--line);
@@ -296,12 +300,13 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="ultimasemana"><span class="n">i.</span>Última semana</button>
     <button class="tab-btn" data-tab="acumulado"><span class="n">ii.</span>Acumulado</button>
-    <button class="tab-btn" data-tab="datos"><span class="n">iii.</span>Datos</button>
-    <button class="tab-btn" data-tab="graficos"><span class="n">iv.</span>Gráficos</button>
-    <button class="tab-btn" data-tab="promedios"><span class="n">v.</span>Promedios semanales</button>
-    <button class="tab-btn" data-tab="forecast"><span class="n">vi.</span>Forecast</button>
-    <button class="tab-btn" data-tab="promolaunch"><span class="n">vii.</span>Promos &amp; Lanzamientos</button>
-    <button class="tab-btn" data-tab="insights"><span class="n">viii.</span>Insights</button>
+    <button class="tab-btn" data-tab="inventario"><span class="n">iii.</span>Inventario</button>
+    <button class="tab-btn" data-tab="datos"><span class="n">iv.</span>Datos</button>
+    <button class="tab-btn" data-tab="graficos"><span class="n">v.</span>Gráficos</button>
+    <button class="tab-btn" data-tab="promedios"><span class="n">vi.</span>Promedios semanales</button>
+    <button class="tab-btn" data-tab="forecast"><span class="n">vii.</span>Forecast</button>
+    <button class="tab-btn" data-tab="promolaunch"><span class="n">viii.</span>Promos &amp; Lanzamientos</button>
+    <button class="tab-btn" data-tab="insights"><span class="n">ix.</span>Insights</button>
   </div>
 
   <!-- TAB: DATOS -->
@@ -384,6 +389,53 @@
     </div>
   </div>
 
+  <!-- TAB: INVENTARIO -->
+  <div class="tab-panel" id="tab-inventario">
+    <div id="inventarioEmpty" style="display:none;">
+      <div class="notes">
+        <b>Todavía no hay datos de inventario cargados.</b> Esta sección se activa automáticamente apenas subas un excel semanal que incluya la columna <b>"Inventario"</b> (stock actual por Retail y Producto, misma granularidad que el resto de la base). Una vez que esa columna tenga datos, acá vas a ver semanas de cobertura por producto y por retail, calculadas sobre el promedio de ventas de las últimas 3 semanas.
+      </div>
+    </div>
+
+    <div id="inventarioContent" style="display:none;">
+      <div class="avg-summary" id="inventorySummary"></div>
+
+      <div class="notes" id="inventoryAlerts" style="margin-bottom:18px;"></div>
+
+      <div class="chart-grid" style="margin-bottom:18px;">
+        <div class="chart-card">
+          <h3>Semanas de cobertura por producto</h3>
+          <p class="desc">Stock actual ÷ promedio de ventas semanales (últimas 3 semanas).</p>
+          <div class="chart-holder"><canvas id="chartInventoryProduct"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Semanas de cobertura por retail</h3>
+          <p class="desc">Stock actual ÷ promedio de ventas semanales (últimas 3 semanas).</p>
+          <div class="chart-holder"><canvas id="chartInventoryRetail"></canvas></div>
+        </div>
+      </div>
+
+      <h3 class="section-title" style="margin-top:0;">Por producto</h3>
+      <div class="table-scroll avg-table-scroll">
+        <table id="tableInventoryProduct" class="avg-table"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <h3 class="section-title">Por retail</h3>
+      <div class="table-scroll avg-table-scroll">
+        <table id="tableInventoryRetail" class="avg-table"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <h3 class="section-title">Detalle retail × producto</h3>
+      <div class="table-scroll avg-table-scroll">
+        <table id="tableInventoryDetail" class="avg-table"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <div class="notes" style="margin-top:16px;">
+        <b>Cómo leer esta sección:</b> "Semanas de cobertura" = stock actual ÷ promedio de unidades vendidas por semana en las últimas 3 semanas. Marcamos en rojo lo que tiene <b>menos de 2 semanas</b> de cobertura (riesgo de quiebre de stock) y en azul lo que tiene <b>más de 8 semanas</b> (posible sobre-stock) — son umbrales de referencia, ajustalos a tu criterio comercial. El stock se toma de la semana más reciente con datos de inventario cargados; si esa semana no coincide con la última semana de ventas, se indica abajo.
+      </div>
+    </div>
+  </div>
+
   <div class="tab-panel" id="tab-datos">
     <div class="table-toolbar">
       <input class="search-box" id="searchBox" placeholder="Buscar cliente, modelo, campaña...">
@@ -403,6 +455,7 @@
             <th data-key="q" style="text-align:right">Cantidad</th>
             <th data-key="pr">Promo</th>
             <th data-key="cp">Campaña</th>
+            <th data-key="inv" style="text-align:right">Inventario</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -842,6 +895,7 @@ function renderTable(){
       <td class="qty-cell ${d.q===0?'qty-zero':''}">${fmt(d.q)}</td>
       <td>${d.pr==='Si' ? '<span class="tag-promo">'+ (d.cp && d.cp!=='-' ? d.cp : 'Promo') +'</span>' : '<span class="tag-none">—</span>'}</td>
       <td>${d.cp && d.cp!=='-' ? d.cp : '—'}</td>
+      <td class="qty-cell">${(d.inv!==null && d.inv!==undefined) ? fmt(d.inv) : '—'}</td>
     </tr>`).join('');
 
   document.getElementById('rowCount').textContent = fmt(data.length) + ' registros';
@@ -2063,6 +2117,156 @@ function renderLastWeek(){
   renderCompareChart('lastWeekProduct', 'chartLastWeekProduct', byProduct, PRODUCT_COLORS);
 }
 
+/* ---------- Inventario: semanas de cobertura ---------- */
+
+const STOCK_LOW_WEEKS = 2;
+const STOCK_HIGH_WEEKS = 8;
+
+function coverBadge(weeks){
+  if(weeks === null) return '<span class="stock-badge">—</span>';
+  if(weeks === Infinity) return '<span class="stock-badge stock-high">sin ventas recientes</span>';
+  if(weeks < STOCK_LOW_WEEKS) return `<span class="stock-badge stock-low">${weeks.toFixed(1)} sem — riesgo quiebre</span>`;
+  if(weeks > STOCK_HIGH_WEEKS) return `<span class="stock-badge stock-high">${weeks.toFixed(1)} sem — sobre-stock</span>`;
+  return `<span class="stock-badge stock-ok">${weeks.toFixed(1)} sem</span>`;
+}
+
+function renderInventory(){
+  const data = filtered();
+  const invRows = data.filter(d=> d.inv !== null && d.inv !== undefined);
+
+  if(invRows.length === 0){
+    document.getElementById('inventarioEmpty').style.display = 'block';
+    document.getElementById('inventarioContent').style.display = 'none';
+    return;
+  }
+  document.getElementById('inventarioEmpty').style.display = 'none';
+  document.getElementById('inventarioContent').style.display = 'block';
+
+  const invWeek = Math.max(...invRows.map(weekKey));
+  const snapshotRows = invRows.filter(d=> weekKey(d) === invWeek);
+
+  // Velocity: avg weekly sales over the last 3 distinct weeks available in the filtered data
+  const allWeekKeys = [...new Set(data.map(weekKey))].sort((a,b)=>a-b);
+  const last3Weeks = allWeekKeys.slice(-3);
+  const salesWindowRows = data.filter(d=> last3Weeks.includes(weekKey(d)));
+
+  function computeStats(keyFn){
+    const stockMap = {}, salesMap = {};
+    snapshotRows.forEach(d=>{ const k=keyFn(d); stockMap[k]=(stockMap[k]||0)+d.inv; });
+    salesWindowRows.forEach(d=>{ const k=keyFn(d); salesMap[k]=(salesMap[k]||0)+d.q; });
+    const keys = [...new Set([...Object.keys(stockMap), ...Object.keys(salesMap)])];
+    return keys.map(k=>{
+      const stock = stockMap[k]||0;
+      const totalSales = salesMap[k]||0;
+      const avgWeekly = totalSales / (last3Weeks.length||1);
+      const weeksCover = avgWeekly>0 ? stock/avgWeekly : (stock>0 ? Infinity : null);
+      return { key:k, stock, avgWeekly, weeksCover };
+    }).sort((a,b)=>b.stock-a.stock);
+  }
+
+  const byProduct = computeStats(d=>d.p);
+  const byRetail = computeStats(d=>d.r);
+  const byDetail = computeStats(d=>d.r+' · '+d.p);
+
+  const totalStock = snapshotRows.reduce((a,d)=>a+d.inv,0);
+  const totalAvgWeekly = salesWindowRows.reduce((a,d)=>a+d.q,0) / (last3Weeks.length||1);
+  const totalWeeksCover = totalAvgWeekly>0 ? totalStock/totalAvgWeekly : null;
+  const lastSalesWeek = allWeekKeys[allWeekKeys.length-1];
+  const snapshotNote = (lastSalesWeek !== invWeek) ? ` (última venta registrada: ${weekLabel(lastSalesWeek)})` : '';
+
+  const lowCount = [...byProduct, ...byRetail].filter(r=>r.weeksCover!==null && r.weeksCover<STOCK_LOW_WEEKS).length;
+  const highCount = [...byProduct, ...byRetail].filter(r=>r.weeksCover===Infinity || (r.weeksCover!==null && r.weeksCover>STOCK_HIGH_WEEKS)).length;
+
+  document.getElementById('inventorySummary').innerHTML = `
+    <div class="kpi">
+      <div class="label">Stock total</div>
+      <div class="value">${fmt(totalStock)}</div>
+      <div class="sub">unidades, semana ${weekLabel(invWeek)}${snapshotNote}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Cobertura total</div>
+      <div class="value">${totalWeeksCover!==null ? totalWeeksCover.toFixed(1)+' sem.' : '—'}</div>
+      <div class="sub">stock ÷ venta prom. últimas 3 sem.</div>
+    </div>
+    <div class="kpi">
+      <div class="label">En riesgo de quiebre</div>
+      <div class="value">${lowCount}</div>
+      <div class="sub">combinaciones con &lt;${STOCK_LOW_WEEKS} semanas de cobertura</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Posible sobre-stock</div>
+      <div class="value">${highCount}</div>
+      <div class="sub">combinaciones con &gt;${STOCK_HIGH_WEEKS} semanas de cobertura</div>
+    </div>`;
+
+  const alerts = [];
+  byProduct.filter(r=>r.weeksCover!==null && r.weeksCover<STOCK_LOW_WEEKS).forEach(r=>
+    alerts.push(`⚠️ Producto <b>${r.key}</b>: ${r.weeksCover.toFixed(1)} semanas de cobertura (${fmt(r.stock)} u. en stock, ${fmt(r.avgWeekly)} u./sem. de venta)`));
+  byRetail.filter(r=>r.weeksCover!==null && r.weeksCover<STOCK_LOW_WEEKS).forEach(r=>
+    alerts.push(`⚠️ Retail <b>${r.key}</b>: ${r.weeksCover.toFixed(1)} semanas de cobertura (${fmt(r.stock)} u. en stock, ${fmt(r.avgWeekly)} u./sem. de venta)`));
+  document.getElementById('inventoryAlerts').innerHTML = alerts.length
+    ? '<b>Riesgo de quiebre de stock:</b><br>' + alerts.map(a=>'• '+a).join('<br>')
+    : '<b>Sin alertas de quiebre</b> — todos los productos y retailers tienen al menos '+STOCK_LOW_WEEKS+' semanas de cobertura.';
+
+  function renderInvTable(tableId, rows, label){
+    const table = document.getElementById(tableId);
+    table.querySelector('thead').innerHTML = `<tr>
+      <th>${label}</th>
+      <th>Stock actual</th>
+      <th>Venta prom/sem (3 sem.)</th>
+      <th>Semanas de cobertura</th>
+    </tr>`;
+    table.querySelector('tbody').innerHTML = rows.map(r=>`
+      <tr>
+        <td>${r.key}</td>
+        <td>${fmt(r.stock)}</td>
+        <td>${fmt(r.avgWeekly)}</td>
+        <td>${coverBadge(r.weeksCover)}</td>
+      </tr>`).join('');
+  }
+  renderInvTable('tableInventoryProduct', byProduct, 'Producto');
+  renderInvTable('tableInventoryRetail', byRetail, 'Retail');
+  renderInvTable('tableInventoryDetail', byDetail, 'Retail · Producto');
+
+  function renderCoverChart(chartKey, canvasId, rows, colorMap){
+    destroyChart(chartKey);
+    const capped = rows.map(r=> r.weeksCover===Infinity ? null : r.weeksCover);
+    charts[chartKey] = new Chart(document.getElementById(canvasId), {
+      type:'bar',
+      data:{
+        labels: rows.map(r=>r.key),
+        datasets:[{
+          data: capped,
+          backgroundColor: rows.map(r=>{
+            if(r.weeksCover===Infinity || (r.weeksCover!==null && r.weeksCover>STOCK_HIGH_WEEKS)) return '#2F6FE0';
+            if(r.weeksCover!==null && r.weeksCover<STOCK_LOW_WEEKS) return '#D6432F';
+            return colorMap[r.key] || '#0E9E8C';
+          }),
+          borderRadius:4, maxBarThickness:36
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#0B0E14', titleColor:'#FFFFFF', bodyColor:'#FFFFFF',
+            borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10,
+            titleFont:{family:'JetBrains Mono', size:11}, bodyFont:{family:'JetBrains Mono', size:11},
+            callbacks:{ label:(ctx)=> ' ' + (ctx.parsed.y===null ? 'sin ventas recientes' : ctx.parsed.y.toFixed(1)+' semanas') }
+          }
+        },
+        scales:{
+          x:{ ticks:{ color:'#5B6472', font:{size:10}, maxRotation:20 }, grid:{ display:false } },
+          y:{ title:{ display:true, text:'Semanas de cobertura', color:'#5B6472', font:{size:11} }, ticks:{ color:'#8890A0', font:{family:'JetBrains Mono', size:10} }, grid:{ color:'rgba(15,23,42,0.08)' } }
+        }
+      }
+    });
+  }
+  renderCoverChart('inventoryProduct', 'chartInventoryProduct', byProduct, PRODUCT_COLORS);
+  renderCoverChart('inventoryRetail', 'chartInventoryRetail', byRetail, RETAIL_COLORS);
+}
+
 function refreshAll(){
   renderFilters();
   renderKPIs();
@@ -2074,6 +2278,7 @@ function refreshAll(){
   renderLaunch();
   renderLastWeek();
   renderAccumulated();
+  renderInventory();
 }
 
 // Carga de datos desde data.json (separado del HTML para poder actualizarlo cada semana
